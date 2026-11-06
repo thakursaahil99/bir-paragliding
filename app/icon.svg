@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bp-wing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffc56b"/>
+      <stop offset="0.55" stop-color="#ff7a2f"/>
+      <stop offset="1" stop-color="#ff4d1a"/>
+    </linearGradient>
+    <linearGradient id="bp-peak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b8bff"/>
+      <stop offset="1" stop-color="#0f3f99"/>
+    </linearGradient>
+    <linearGradient id="bp-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101d36"/>
+      <stop offset="1" stop-color="#060a12"/>
+    </linearGradient>
+    <clipPath id="bp-clip"><rect width="64" height="64" rx="16"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bp-bg)"/>
+  <g clip-path="url(#bp-clip)">
+    <path d="M0 64 L0 55 L13 46 L20 50.5 L32 40.5 L42 49.5 L48 45.5 L64 56 L64 64 Z" fill="url(#bp-peak)"/>
+    <path d="M32 40.5 L28.4 43.6 L30.6 43 L32 44.6 L33.6 43 L35.8 43.8 Z" fill="#f4f7fb"/>
+  </g>
+  <path d="M10 22 C 18 8.5, 46 8.5, 54 22 L 50.2 24.2 C 43.5 14.6, 20.5 14.6, 13.8 24.2 Z" fill="url(#bp-wing)"/>
+  <path d="M13.8 24.2 L 32 34.4 M 50.2 24.2 L 32 34.4 M 23.5 17.6 L 32 34.4 M 40.5 17.6 L 32 34.4" stroke="#f4f7fb" stroke-width="1.1" stroke-linecap="round" opacity="0.75"/>
+  <circle cx="32" cy="36" r="2.8" fill="#f4f7fb"/>
+</svg>
