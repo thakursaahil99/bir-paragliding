@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { gsap, prefersReduced } from '@/lib/gsap';
+import { getTier } from '@/lib/perf';
 import { useReady } from '@/lib/useReady';
 import { scrollState } from '@/lib/store';
 import { imageMeta } from '@/lib/blur';
@@ -206,7 +207,7 @@ function Phone({ r, i }: { r: (typeof REELS)[number]; i: number }) {
     const io = new IntersectionObserver(([e]) => {
       const v = vid.current;
       if (!v) return;
-      if (e.isIntersecting) v.play().catch(() => {});
+      if (e.isIntersecting && getTier() !== 'low') v.play().catch(() => {});
       else v.pause();
     });
     io.observe(el);

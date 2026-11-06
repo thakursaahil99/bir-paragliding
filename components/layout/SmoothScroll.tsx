@@ -4,13 +4,36 @@ import { useEffect, type ReactNode } from 'react';
 import Lenis from 'lenis';
 import { gsap, ScrollTrigger, prefersReduced } from '@/lib/gsap';
 import { emitScroll, lenisRef, scrollState } from '@/lib/store';
+import { getTier, onTierChange, startPerfMonitor } from '@/lib/perf';
 
-/** Lenis smooth scroll driven by the GSAP ticker so ScrollTrigger & Lenis share one clock. */
+/**
+ * Native-scroll stand-in exposing the slice of the Lenis API the app uses (lock / unlock /
+ * scrollTo), so menus, modals, the preloader and page transitions work identically on
+ * low-tier devices where we let the browser scroll natively (smoothest option on weak CPUs).
+ */
+const nativeScroller = {
+  stop() {
+    document.documentElement.style.overflow = 'hidden';
+  },
+  start() {
+    document.documentElement.style.overflow = '';
+  },
+  scrollTo(target: number | string | HTMLElement, opts: { immediate?: boolean; offset?: number } = {}) {
+    const el = typeof target === 'string' ? document.querySelector<HTMLElement>(target) : typeof target === 'number' ? null : target;
+    const top = (typeof target === 'number' ? target : el ? el.getBoundingClientRect().top + window.scrollY : 0) + (opts.offset ?? 0);
+    window.scrollTo({ top, behavior: opts.immediate ? 'auto' : 'smooth' });
+  },
+};
+
+/** Lenis smooth scroll driven by the GSAP ticker (high/mid tiers); native scrolling on low tier. */
 export default function SmoothScroll({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.add('js');
+    let lenis: Lenis | null = null;
+    let tick: ((time: number) => void) | null = null;
+    let detachNative: (() => void) | null = null;
 
-    if (prefersReduced()) {
+    const goNative = () => {
       let last = window.scrollY;
       const onNative = () => {
         const y = window.scrollY;
@@ -24,31 +47,50 @@ export default function SmoothScroll({ children }: { children: ReactNode }) {
         emitScroll();
       };
       window.addEventListener('scroll', onNative, { passive: true });
-      return () => window.removeEventListener('scroll', onNative);
-    }
+      lenisRef.current = nativeScroller as unknown as Lenis;
+      detachNative = () => window.removeEventListener('scroll', onNative);
+    };
 
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-      wheelMultiplier: 0.9,
-      touchMultiplier: 1.4,
-    });
-    lenisRef.current = lenis;
+    const goSmooth = () => {
+      const l = new Lenis({
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+        wheelMultiplier: 0.9,
+        touchMultiplier: 1.4,
+      });
+      l.on('scroll', (s: Lenis) => {
+        scrollState.y = s.scroll;
+        scrollState.velocity = s.velocity;
+        scrollState.direction = s.direction === -1 ? -1 : 1;
+        scrollState.progress = s.progress;
+        scrollState.limit = s.limit;
+        ScrollTrigger.update();
+        emitScroll();
+      });
+      tick = (time: number) => l.raf(time * 1000);
+      gsap.ticker.add(tick);
+      lenis = l;
+      lenisRef.current = l;
+    };
 
-    lenis.on('scroll', (l: Lenis) => {
-      scrollState.y = l.scroll;
-      scrollState.velocity = l.velocity;
-      scrollState.direction = l.direction === -1 ? -1 : 1;
-      scrollState.progress = l.progress;
-      scrollState.limit = l.limit;
-      ScrollTrigger.update();
-      emitScroll();
-    });
-
-    const tick = (time: number) => lenis.raf(time * 1000);
-    gsap.ticker.add(tick);
+    if (prefersReduced() || getTier() === 'low') goNative();
+    else goSmooth();
     gsap.ticker.lagSmoothing(500, 33);
+
+    // if the device can't keep up, hand scrolling back to the browser mid-visit
+    const offTier = onTierChange((t) => {
+      if (t !== 'low' || !lenis) return;
+      const stopped = lenis.isStopped;
+      if (tick) gsap.ticker.remove(tick);
+      lenis.destroy();
+      lenis = null;
+      tick = null;
+      goNative();
+      if (stopped) nativeScroller.stop();
+      ScrollTrigger.refresh();
+    });
+    startPerfMonitor();
 
     // keep layout-dependent triggers honest when fonts / images settle (debounced;
     // pin spacers change body height themselves, so only react to real growth)
@@ -69,11 +111,14 @@ export default function SmoothScroll({ children }: { children: ReactNode }) {
     window.addEventListener('load', refresh);
 
     return () => {
+      offTier();
       window.clearTimeout(timer);
       ro.disconnect();
       window.removeEventListener('load', refresh);
-      gsap.ticker.remove(tick);
-      lenis.destroy();
+      if (tick) gsap.ticker.remove(tick);
+      (lenis as Lenis | null)?.destroy();
+      detachNative?.();
+      document.documentElement.style.overflow = '';
       lenisRef.current = null;
     };
   }, []);

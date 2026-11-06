@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { gsap, prefersReduced } from '@/lib/gsap';
 import { whenReady } from '@/lib/store';
+import { getTier } from '@/lib/perf';
 
 /**
  * A small rounded "window" that opens into a full-bleed film as you scroll —
@@ -17,7 +18,8 @@ export default function VideoExpand() {
     const v = video.current!;
     const io = new IntersectionObserver(
       ([e]) => {
-        if (e.isIntersecting) {
+        // low tier: the poster frame stays; no 1080p decode on weak devices
+        if (e.isIntersecting && getTier() !== 'low') {
           if (v.preload !== 'auto') v.preload = 'auto';
           v.play().catch(() => {});
         } else v.pause();

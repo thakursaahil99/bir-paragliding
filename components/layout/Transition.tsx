@@ -65,9 +65,9 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
         .fromTo(
           bands(),
           { xPercent: -105, skewX: -12 },
-          { xPercent: 0, skewX: 0, duration: 0.85, ease: 'expo.inOut', stagger: { each: 0.045, from: 'center' } }
+          { xPercent: 0, skewX: 0, duration: 0.55, ease: 'expo.inOut', stagger: { each: 0.03, from: 'center' } }
         )
-        .fromTo('[data-wind]', { xPercent: -100, opacity: 0 }, { xPercent: 260, opacity: 1, duration: 0.9, ease: 'power2.out', stagger: 0.06 }, 0.1);
+        .fromTo('[data-wind]', { xPercent: -100, opacity: 0 }, { xPercent: 260, opacity: 1, duration: 0.65, ease: 'power2.out', stagger: 0.05 }, 0.05);
     },
     [router]
   );
@@ -87,14 +87,14 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
             busy.current = false;
           },
         })
-        .add(() => setTitle(null), 0.25)
-        .to(bands(), { xPercent: 105, skewX: 12, duration: 0.95, ease: 'expo.inOut', stagger: { each: 0.045, from: 'edges' } }, 0.35)
+        .add(() => setTitle(null), 0.12)
+        .to(bands(), { xPercent: 105, skewX: 12, duration: 0.65, ease: 'expo.inOut', stagger: { each: 0.03, from: 'edges' } }, 0.18)
         .add(() => {
           lenisRef.current?.start();
           setTransitioning(false);
           requestAnimationFrame(() => ScrollTrigger.refresh());
-        }, 0.6);
-    }, 120);
+        }, 0.35);
+    }, 60);
     return () => clearTimeout(t);
   }, [pathname]);
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import Img from '../animations/Img';
+import { getTier, onTierChange } from '@/lib/perf';
 
 const VERT = `
 attribute vec2 aPos;
@@ -53,6 +54,7 @@ export default function DistortImage({ src, alt, className = '' }: { src: string
     const el = wrap.current!;
     const cv = canvas.current!;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (getTier() === 'low') return; // low tier: the plain photo underneath is all we show
     const gl = cv.getContext('webgl', { premultipliedAlpha: false, antialias: false });
     if (!gl) return;
 
@@ -161,7 +163,11 @@ export default function DistortImage({ src, alt, className = '' }: { src: string
     el.addEventListener('pointerenter', enter);
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerleave', leave);
+    const offTier = onTierChange((t) => {
+      if (t === 'low') cv.style.display = 'none';
+    });
     return () => {
+      offTier();
       cancelAnimationFrame(raf);
       ro.disconnect();
       el.removeEventListener('pointerenter', enter);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { gsap, prefersReduced } from '@/lib/gsap';
 import { whenReady } from '@/lib/store';
+import { getTier } from '@/lib/perf';
 import { seasons } from '@/lib/site';
 import Img from '../animations/Img';
 
@@ -18,7 +19,10 @@ function useWeather(canvas: React.RefObject<HTMLCanvasElement | null>, mode: Rea
       h = 0,
       raf = 0,
       t = 0;
-    const dpr = Math.min(window.devicePixelRatio, 1.5);
+    // weaker devices keep the weather, just lighter: 1× canvas, fewer flakes and drops
+    const tierNow = getTier();
+    const amount = tierNow === 'low' ? 0.4 : tierNow === 'mid' ? 0.7 : 1;
+    const dpr = tierNow === 'high' ? Math.min(window.devicePixelRatio, 1.5) : 1;
     const resize = () => {
       w = cv.clientWidth;
       h = cv.clientHeight;
@@ -52,8 +56,8 @@ function useWeather(canvas: React.RefObject<HTMLCanvasElement | null>, mode: Rea
       t += 1;
       ctx.clearRect(0, 0, w, h);
       const m = mode.current;
-      acc += rate[m];
-      while (acc >= 1 && ps.length < 260) {
+      acc += rate[m] * amount;
+      while (acc >= 1 && ps.length < 260 * amount) {
         ps.push(spawn(m));
         acc -= 1;
       }

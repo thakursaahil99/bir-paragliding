@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { gsap } from '@/lib/gsap';
+import { getTier, onTierChange } from '@/lib/perf';
 
 /**
  * Glowing dot + trailing ring. The ring stretches along the direction of travel like a
@@ -17,6 +18,7 @@ export default function Cursor() {
   useEffect(() => {
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (getTier() === 'low') return; // native cursor on low-tier devices
     const html = document.documentElement;
     html.classList.add('has-cursor');
     const d = dot.current!;
@@ -91,7 +93,17 @@ export default function Cursor() {
     window.addEventListener('pointerup', up);
     document.addEventListener('pointerleave', leave);
 
+    const teardown = () => {
+      html.classList.remove('has-cursor');
+      gsap.set([d, r], { autoAlpha: 0 });
+      gsap.ticker.remove(tick);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerover', over);
+    };
+    const offTier = onTierChange((t) => t === 'low' && teardown());
+
     return () => {
+      offTier();
       html.classList.remove('has-cursor');
       gsap.ticker.remove(tick);
       window.removeEventListener('pointermove', move);

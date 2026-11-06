@@ -1,33 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getTier, usePerfTier } from './perf';
 
-/** Heuristic for devices that should skip heavy WebGL scenes. */
+/** Devices that should skip heavy WebGL scenes — see the tier rules in lib/perf.ts. */
 export function isLowEnd(): boolean {
   if (typeof window === 'undefined') return false;
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean; effectiveType?: string } };
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
-  if (nav.connection?.saveData) return true;
-  if (nav.connection?.effectiveType && /(^|-)2g|3g/.test(nav.connection.effectiveType)) return true;
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
-  const cores = nav.hardwareConcurrency ?? 8;
-  const mem = nav.deviceMemory ?? 8;
-  if (mem <= 2 || cores <= 2) return true;
-  if (coarse && (mem <= 4 || cores <= 4)) return true;
-  try {
-    const c = document.createElement('canvas');
-    const gl = c.getContext('webgl2') || c.getContext('webgl');
-    if (!gl) return true;
-  } catch {
-    return true;
-  }
-  return false;
+  return getTier() === 'low';
 }
 
+/** null until resolved on the client, then true for low-tier devices (live: follows downgrades). */
 export function useLowEnd() {
-  const [low, setLow] = useState<boolean | null>(null);
-  useEffect(() => setLow(isLowEnd()), []);
-  return low;
+  const tier = usePerfTier();
+  return tier === null ? null : tier === 'low';
 }
 
 export function useReducedMotion() {

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { gsap, ScrollTrigger, SplitText, prefersReduced } from '@/lib/gsap';
 import { whenReady } from '@/lib/store';
-import { useLowEnd } from '@/lib/device';
+import { usePerfTier } from '@/lib/perf';
 import { ridgePath } from '@/lib/ridge';
 import Img from '@/components/animations/Img';
 import Magnetic from '@/components/animations/Magnetic';
@@ -25,10 +25,18 @@ export default function Hero() {
   const section = useRef<HTMLElement>(null);
   const progress = useRef(0);
   const pointer = useRef({ x: 0, y: 0 });
-  const low = useLowEnd();
+  const tier = usePerfTier();
+  // 3D quality is fixed at the first decision (no rebuilds); a later drop to low swaps in the photo hero
+  const [quality, setQuality] = useState<'high' | 'mid' | null>(null);
+  const show3D = quality !== null && tier !== null && tier !== 'low';
   const [palette, setPalette] = useState<PaletteName>('dawn');
   const [clock, setClock] = useState('');
   const [sceneReady, setSceneReady] = useState(false);
+
+  useEffect(() => {
+    if (tier && tier !== 'low' && !quality) setQuality(tier);
+    if (tier === 'low') setSceneReady(false);
+  }, [tier, quality]);
   const [inView, setInView] = useState(true);
 
   // time-of-day from the visitor's real clock
@@ -149,9 +157,9 @@ export default function Hero() {
           ))}
         </div>
 
-        {low === false && (
+        {show3D && quality && (
           <div className={`absolute inset-0 transition-opacity duration-[1600ms] ${sceneReady ? 'opacity-100' : 'opacity-0'}`}>
-            <HeroScene progress={progress} pointer={pointer} palette={palette} active={inView} onReady={() => setTimeout(() => setSceneReady(true), 300)} />
+            <HeroScene quality={quality} progress={progress} pointer={pointer} palette={palette} active={inView} onReady={() => setTimeout(() => setSceneReady(true), 300)} />
           </div>
         )}
 

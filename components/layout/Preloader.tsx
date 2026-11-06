@@ -21,7 +21,18 @@ export default function Preloader() {
       markLoaded();
       lenisRef.current?.start();
       setDone(true);
+      try {
+        sessionStorage.setItem('bir-seen', '1');
+      } catch {
+        /* private mode */
+      }
     };
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem('bir-seen') === '1';
+    } catch {
+      /* private mode */
+    }
     if (prefersReduced()) {
       gsap.to(el, { autoAlpha: 0, duration: 0.3, onComplete: finish });
       return;
@@ -38,13 +49,29 @@ export default function Preloader() {
     trail.style.strokeDasharray = `${len}`;
     trail.style.strokeDashoffset = `${len}`;
 
-    const ready = Promise.race([
-      Promise.all([
-        document.fonts?.ready ?? Promise.resolve(),
-        new Promise<void>((r) => (document.readyState === 'complete' ? r() : window.addEventListener('load', () => r(), { once: true }))),
-      ]),
-      new Promise((r) => setTimeout(r, 4500)),
-    ]);
+    // only the type has to be ready — images stream in behind the clouds (never wait on window.load)
+    const ready = Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 2600))]);
+
+    // returning in the same session: skip the flight, just part the clouds
+    if (seen) {
+      const quick = gsap.context(() => {
+        gsap.set(['[data-pl-fade]', '#pl-svg'], { autoAlpha: 0 });
+        gsap
+          .timeline({ delay: 0.15 })
+          .to('#pl-top', { yPercent: -102, duration: 0.75, ease: 'expo.inOut' }, 0)
+          .to('#pl-bot', { yPercent: 102, duration: 0.75, ease: 'expo.inOut' }, 0)
+          .to('#pl-mist', { autoAlpha: 0, duration: 0.6 }, 0)
+          .add(() => {
+            markLoaded();
+            requestAnimationFrame(() => ScrollTrigger.refresh());
+          }, 0.3)
+          .add(finish);
+      }, el);
+      return () => {
+        cancelAnimationFrame(stopper);
+        quick.revert();
+      };
+    }
 
     const state = { p: 0 };
     const place = () => {
@@ -61,23 +88,23 @@ export default function Preloader() {
 
     const ctx = gsap.context(() => {
       const tl = gsap.timeline();
-      tl.from('[data-pl-fade]', { autoAlpha: 0, y: 14, duration: 0.8, stagger: 0.08, ease: 'power3.out' })
-        .to(state, { p: 0.86, duration: 1.9, ease: 'power2.inOut', onUpdate: place }, 0.1)
+      tl.from('[data-pl-fade]', { autoAlpha: 0, y: 14, duration: 0.6, stagger: 0.06, ease: 'power3.out' })
+        .to(state, { p: 0.86, duration: 1.3, ease: 'power2.inOut', onUpdate: place }, 0.1)
         .add(() => {
           tl.pause();
           ready.then(() => tl.resume());
         })
-        .to(state, { p: 1, duration: 0.55, ease: 'power2.out', onUpdate: place })
-        .to('[data-pl-fade]', { autoAlpha: 0, y: -10, duration: 0.4, stagger: 0.04 }, '+=0.15')
-        .to('#pl-svg', { autoAlpha: 0, scale: 1.08, duration: 0.5 }, '<')
+        .to(state, { p: 1, duration: 0.4, ease: 'power2.out', onUpdate: place })
+        .to('[data-pl-fade]', { autoAlpha: 0, y: -10, duration: 0.3, stagger: 0.03 }, '+=0.05')
+        .to('#pl-svg', { autoAlpha: 0, scale: 1.08, duration: 0.35 }, '<')
         .addLabel('part')
-        .to('#pl-top', { yPercent: -102, duration: 1.25, ease: 'expo.inOut' }, 'part')
-        .to('#pl-bot', { yPercent: 102, duration: 1.25, ease: 'expo.inOut' }, 'part')
-        .to('#pl-mist', { autoAlpha: 0, scale: 1.6, duration: 1.2, ease: 'power2.out' }, 'part+=0.1')
+        .to('#pl-top', { yPercent: -102, duration: 1, ease: 'expo.inOut' }, 'part')
+        .to('#pl-bot', { yPercent: 102, duration: 1, ease: 'expo.inOut' }, 'part')
+        .to('#pl-mist', { autoAlpha: 0, scale: 1.6, duration: 0.9, ease: 'power2.out' }, 'part+=0.05')
         .add(() => {
           markLoaded();
           requestAnimationFrame(() => ScrollTrigger.refresh());
-        }, 'part+=0.45')
+        }, 'part+=0.35')
         .add(finish);
     }, el);
 

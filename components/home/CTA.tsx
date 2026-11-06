@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { gsap, prefersReduced } from '@/lib/gsap';
 import { waLink } from '@/lib/site';
+import { getTier } from '@/lib/perf';
 import Magnetic from '@/components/animations/Magnetic';
 import { TLink } from '@/components/layout/Transition';
 
@@ -17,7 +18,7 @@ export default function CTA() {
   useEffect(() => {
     const el = section.current!;
     const v = video.current!;
-    const io = new IntersectionObserver(([e]) => (e.isIntersecting ? v.play().catch(() => {}) : v.pause()), { rootMargin: '200px' });
+    const io = new IntersectionObserver(([e]) => (e.isIntersecting && getTier() !== 'low' ? v.play().catch(() => {}) : v.pause()), { rootMargin: '200px' });
     io.observe(el);
     if (prefersReduced()) return () => io.disconnect();
     const ctx = gsap.context(() => {

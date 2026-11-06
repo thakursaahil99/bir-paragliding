@@ -5,9 +5,12 @@ import { Cloud, Clouds, Stars, useTexture } from '@react-three/drei';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import * as THREE from 'three';
 import type { PaletteName } from './palettes';
+import { getTier, onTierChange } from '@/lib/perf';
 
 type Pointer = { x: number; y: number };
+type Quality = 'high' | 'mid';
 type Props = {
+  quality: Quality;
   progress: MutableRefObject<number>;
   pointer: MutableRefObject<Pointer>;
   palette: PaletteName;
@@ -415,8 +418,7 @@ function puffDataURL() {
 const FLOOR = { x0: -560, x1: 560, z0: -700, z1: 100 };
 const LANDING = { x: 0, z: -265, w: 170, h: 170 / (1920 / 1079) };
 
-async function valleyCanvas(tick: Tick) {
-  const W = 2560;
+async function valleyCanvas(tick: Tick, W = 2560) {
   const k = W / (FLOOR.x1 - FLOOR.x0);
   const H = Math.round((FLOOR.z1 - FLOOR.z0) * k);
   const cx = (x: number) => (x - FLOOR.x0) * k;
@@ -769,8 +771,8 @@ async function makeBelt(o: Belt, tick: Tick) {
 }
 
 /** The valley walls left & right of Bir plus the rising ground behind the launch. */
-async function makeWalls(tick: Tick) {
-  const g = new THREE.PlaneGeometry(3400, 1300, 340, 130);
+async function makeWalls(tick: Tick, segW = 340, segD = 130) {
+  const g = new THREE.PlaneGeometry(3400, 1300, segW, segD);
   g.rotateX(-Math.PI / 2);
   g.translate(0, 0, -350);
   const pos = g.attributes.position as THREE.BufferAttribute;
@@ -804,9 +806,10 @@ type HeroAssets = {
   mid: THREE.BufferGeometry;
   walls: THREE.BufferGeometry;
 };
-let assetsPromise: Promise<HeroAssets> | null = null;
-function loadHeroAssets() {
-  assetsPromise ??= (async () => {
+const assetsCache: Partial<Record<Quality, Promise<HeroAssets>>> = {};
+function loadHeroAssets(q: Quality) {
+  const lite = q === 'mid';
+  assetsCache[q] ??= (async () => {
     const tick = makeTick(10);
     const detail = detailCanvas();
     await tick();
@@ -814,13 +817,13 @@ function loadHeroAssets() {
     await tick();
     const puff = puffDataURL();
     await tick();
-    const { cv: valley, lamps } = await valleyCanvas(tick);
-    const far = await makeBelt({ width: 5200, depth: 420, segW: 300, segD: 28, height: 92, seed: 3, spacing: 520 }, tick);
-    const mid = await makeBelt({ width: 3800, depth: 380, segW: 380, segD: 38, height: 74, seed: 7, spacing: 360 }, tick);
-    const walls = await makeWalls(tick);
+    const { cv: valley, lamps } = await valleyCanvas(tick, lite ? 1792 : 2560);
+    const far = await makeBelt({ width: 5200, depth: 420, segW: lite ? 200 : 300, segD: lite ? 20 : 28, height: 92, seed: 3, spacing: 520 }, tick);
+    const mid = await makeBelt({ width: 3800, depth: 380, segW: lite ? 260 : 380, segD: lite ? 26 : 38, height: 74, seed: 7, spacing: 360 }, tick);
+    const walls = await makeWalls(tick, lite ? 230 : 340, lite ? 90 : 130);
     return { detail, shadow, valley, lamps, puff, far, mid, walls };
   })();
-  return assetsPromise;
+  return assetsCache[q]!;
 }
 
 function Terrain({ live, assets }: { live: Live; assets: HeroAssets }) {
@@ -914,24 +917,25 @@ const SEA: Puff[] = [
   { p: [-1150, 32, -1320], b: [300, 10, 90], v: 130, s: 14, seed: 29 },
 ];
 
-function CloudField({ groupRef, url }: { groupRef: RefObject<THREE.Group | null>; url: string }) {
+function CloudField({ groupRef, url, lite }: { groupRef: RefObject<THREE.Group | null>; url: string; lite: boolean }) {
+  const n = (x: number) => Math.max(6, Math.round(x * (lite ? 0.6 : 1)));
   const drift = useRef<THREE.Group>(null);
   useFrame((state) => {
     if (drift.current) drift.current.position.x = Math.sin(state.clock.elapsedTime * 0.021) * 26;
   });
   return (
     <group ref={drift}>
-      <Clouds ref={groupRef} material={THREE.MeshBasicMaterial} texture={url} limit={240} frustumCulled={false}>
+      <Clouds ref={groupRef} material={THREE.MeshBasicMaterial} texture={url} limit={lite ? 150 : 240} frustumCulled={false}>
         {DECK.map((c) => (
           <group key={c.seed}>
             {/* sunlit tops */}
-            <Cloud seed={c.seed} segments={c.s} bounds={c.b} volume={c.v} smallestVolume={0.45} color="#ffffff" fade={40} speed={0.1} growth={4} opacity={0.9} position={c.p} />
+            <Cloud seed={c.seed} segments={n(c.s)} bounds={c.b} volume={c.v} smallestVolume={0.45} color="#ffffff" fade={40} speed={0.1} growth={4} opacity={0.9} position={c.p} />
             {/* shaded bases */}
-            <Cloud seed={c.seed + 100} segments={Math.round(c.s * 0.5)} bounds={[c.b[0] * 0.8, c.b[1] * 0.5, c.b[2] * 0.8]} volume={c.v * 0.85} smallestVolume={0.5} color="#a9b4c4" fade={40} speed={0.08} growth={3} opacity={0.8} position={[c.p[0], c.p[1] - c.b[1] * 0.9, c.p[2]]} />
+            <Cloud seed={c.seed + 100} segments={n(c.s * 0.5)} bounds={[c.b[0] * 0.8, c.b[1] * 0.5, c.b[2] * 0.8]} volume={c.v * 0.85} smallestVolume={0.5} color="#a9b4c4" fade={40} speed={0.08} growth={3} opacity={0.8} position={[c.p[0], c.p[1] - c.b[1] * 0.9, c.p[2]]} />
           </group>
         ))}
         {SEA.map((c) => (
-          <Cloud key={c.seed} seed={c.seed} segments={c.s} bounds={c.b} volume={c.v} smallestVolume={0.5} concentrate="random" color="#f6f8fb" fade={60} speed={0.04} growth={6} opacity={0.85} position={c.p} />
+          <Cloud key={c.seed} seed={c.seed} segments={n(c.s)} bounds={c.b} volume={c.v} smallestVolume={0.5} concentrate="random" color="#f6f8fb" fade={60} speed={0.04} growth={6} opacity={0.85} position={c.p} />
         ))}
       </Clouds>
     </group>
@@ -1124,10 +1128,19 @@ function CameraRig({ progress, pointer }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-/** Steps resolution down (never up) if the GPU can't hold ~45 fps, so weaker laptops stay smooth. */
-function AdaptiveQuality() {
+/** Steps resolution down (never up) if the GPU can't hold ~45 fps, so weaker laptops stay smooth.
+ *  If the site-wide monitor drops the device to "mid" mid-visit, resolution is capped at 1× too. */
+function AdaptiveQuality({ lite }: { lite: boolean }) {
   const setDpr = useThree((st) => st.setDpr);
+  const getDpr = useThree((st) => st.viewport.dpr);
   const s = useRef({ warm: 0, acc: 0, n: 0, level: 0 });
+  useEffect(
+    () =>
+      onTierChange((t) => {
+        if (t === 'mid' && getDpr > 1) setDpr(1);
+      }),
+    [setDpr, getDpr]
+  );
   useFrame((_, dt) => {
     const st = s.current;
     const d = Math.min(dt, 0.1);
@@ -1138,14 +1151,15 @@ function AdaptiveQuality() {
     st.acc = st.n = 0;
     if (avg > 1 / 45 && st.level < 2) {
       st.level++;
-      setDpr(st.level === 1 ? 1 : 0.75);
+      setDpr(lite ? (st.level === 1 ? 0.85 : 0.7) : st.level === 1 ? 1 : 0.75);
     }
   });
   return null;
 }
 
 /* ================================================================== scene */
-function World({ progress, pointer, palette, onReady, assets }: Omit<Props, 'active'> & { assets: HeroAssets }) {
+function World({ progress, pointer, palette, onReady, assets, quality }: Omit<Props, 'active'> & { assets: HeroAssets }) {
+  const lite = quality === 'mid';
   const range = useTexture('/images/hero-range.webp');
   useLayoutEffect(() => {
     range.colorSpace = THREE.SRGBColorSpace;
@@ -1166,32 +1180,37 @@ function World({ progress, pointer, palette, onReady, assets }: Omit<Props, 'act
       {palette === 'night' && <Stars radius={900} depth={60} count={2600} factor={7} saturation={0} fade speed={0.3} />}
       <Range live={live} map={range} />
       <Terrain live={live} assets={assets} />
-      <CloudField groupRef={clouds} url={assets.puff} />
+      <CloudField groupRef={clouds} url={assets.puff} lite={lite} />
       <VillageLights live={live} lamps={assets.lamps} />
       {palette !== 'night' && <Gaggle />}
       <Glider progress={progress} pointer={pointer} />
       <CameraRig progress={progress} pointer={pointer} />
-      <AdaptiveQuality />
+      <AdaptiveQuality lite={lite} />
     </>
   );
 }
 
 /** Realistic 3D descent from Billing to Bir: photographic Dhauladhar, aerial-perspective haze, drifting cumulus and their shadows. */
-export default function HeroScene({ progress, pointer, palette, active, onReady }: Props) {
+export default function HeroScene({ quality, progress, pointer, palette, active, onReady }: Props) {
+  const lite = quality === 'mid';
+  // phones keep 1.5× on lite (1× looks soft on dense screens); laptops on lite render at 1×
+  const [dpr] = useState<number | [number, number]>(() =>
+    lite ? Math.min(window.devicePixelRatio || 1, window.matchMedia('(pointer: coarse)').matches ? 1.5 : 1) : getTier() === 'high' ? [1, 1.6] : 1
+  );
   const [assets, setAssets] = useState<HeroAssets | null>(null);
   useEffect(() => {
     let alive = true;
-    loadHeroAssets().then((a) => alive && setAssets(a));
+    loadHeroAssets(quality).then((a) => alive && setAssets(a));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [quality]);
   return (
     <Canvas
       className="!absolute inset-0"
       frameloop={active ? 'always' : 'never'}
-      dpr={[1, 1.6]}
-      gl={{ antialias: true, powerPreference: 'high-performance', alpha: false }}
+      dpr={dpr}
+      gl={{ antialias: !lite, powerPreference: 'high-performance', alpha: false }}
       camera={{ fov: 45, near: 0.5, far: 6000, position: [0, 74, 40] }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.NeutralToneMapping;
@@ -1200,7 +1219,7 @@ export default function HeroScene({ progress, pointer, palette, active, onReady 
     >
       {assets && (
         <Suspense fallback={null}>
-          <World progress={progress} pointer={pointer} palette={palette} onReady={onReady} assets={assets} />
+          <World quality={quality} progress={progress} pointer={pointer} palette={palette} onReady={onReady} assets={assets} />
         </Suspense>
       )}
     </Canvas>

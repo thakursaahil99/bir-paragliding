@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { prefersReduced } from '@/lib/gsap';
+import { getTier } from '@/lib/perf';
 import SplitHeading from '@/components/animations/SplitHeading';
 
 /** Ridge profile 0..1 → height fraction (crest around x≈0.62). */
@@ -22,7 +23,8 @@ export default function RidgeLift() {
   useEffect(() => {
     const c = cv.current!;
     const ctx = c.getContext('2d')!;
-    const dpr = Math.min(window.devicePixelRatio, 1.5);
+    const tierNow = getTier();
+    const dpr = tierNow === 'high' ? Math.min(window.devicePixelRatio, 1.5) : 1;
     let w = 0,
       h = 0,
       raf = 0,
@@ -41,7 +43,7 @@ export default function RidgeLift() {
     const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
     io.observe(c);
     type P = { x: number; y: number; life: number };
-    const ps: P[] = Array.from({ length: 260 }, () => ({ x: Math.random(), y: Math.random() * 0.9, life: Math.random() }));
+    const ps: P[] = Array.from({ length: tierNow === 'low' ? 110 : tierNow === 'mid' ? 180 : 260 }, () => ({ x: Math.random(), y: Math.random() * 0.9, life: Math.random() }));
     const g = { x: 0.42, y: 0.4, vy: 0, bank: 0 };
     const surf = (x: number) => 1 - ridge(x); // y (0 top..1 bottom) of terrain
 

@@ -157,6 +157,30 @@ html.has-cursor * {
   100% { transform: translate(0, 0); }
 }
 
+/* ---------- device tiers (set on <html data-perf> by lib/perf-boot.ts + lib/perf.ts) ---------- */
+/* low: i3-class laptops & budget phones — no live blur (the costliest effect while scrolling) */
+html[data-perf='low'] *,
+html[data-perf='low'] *::before,
+html[data-perf='low'] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-perf='low'] .glass {
+  background: rgb(13 19 31 / 0.88);
+}
+html[data-perf='low'] {
+  scrollbar-gutter: stable;
+}
+/* mid: lighter glass, no animated grain layer */
+html[data-perf='mid'] .glass {
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+}
+html[data-perf='low'] .grain::after,
+html[data-perf='mid'] .grain::after {
+  display: none;
+}
+
 /* floating book button */
 @keyframes pulse-ring {
   0% { transform: scale(0.85); opacity: 0.7; }

@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Syne } from 'next/font/google';
 import './globals.css';
 import { site } from '@/lib/site';
 import { localBusinessLd } from '@/lib/seo';
+import { PERF_BOOT_SCRIPT } from '@/lib/perf-boot';
 import JsonLd from '@/components/JsonLd';
 import SmoothScroll from '@/components/layout/SmoothScroll';
 import { TransitionProvider } from '@/components/layout/Transition';
@@ -52,8 +53,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${syne.variable} ${inter.variable} ${jet.variable}`} suppressHydrationWarning>
       <head>
-        {/* flag JS early so reveal states never flash */}
-        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
+        {/* flag JS early so reveal states never flash, and pick a device tier before first paint */}
+        <script dangerouslySetInnerHTML={{ __html: PERF_BOOT_SCRIPT }} />
         <noscript>
           <style>{'#preloader{display:none!important}'}</style>
         </noscript>

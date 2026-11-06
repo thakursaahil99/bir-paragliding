@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { getTier, onTierChange } from '@/lib/perf';
 
 export type FxMode = 'bubbles' | 'wind' | 'stars' | 'bokeh' | 'sparks' | 'dust' | 'none';
 
@@ -9,7 +10,8 @@ type P = { x: number; y: number; vx: number; vy: number; r: number; a: number; l
 /**
  * Lightweight generative layer (2D canvas). Change `mode`, `color` or `intensity`
  * at any time — existing particles fade out naturally while the new mode spawns.
- * Pauses itself when off-screen and respects reduced motion.
+ * Pauses itself when off-screen and respects reduced motion. Device tiers: off on 'low',
+ * half density at 1× resolution on 'mid' (see lib/perf.ts).
  */
 export default function Particles({ mode, color = '#ffffff', intensity = 1, className = '' }: { mode: FxMode; color?: string; intensity?: number; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -19,8 +21,10 @@ export default function Particles({ mode, color = '#ffffff', intensity = 1, clas
   useEffect(() => {
     const cv = ref.current!;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (getTier() === 'low') return;
+    let lite = getTier() === 'mid';
     const ctx = cv.getContext('2d')!;
-    const dpr = Math.min(window.devicePixelRatio, 1.5);
+    const dpr = lite ? 1 : Math.min(window.devicePixelRatio, 1.5);
     let w = 0,
       h = 0,
       raf = 0,
@@ -69,9 +73,9 @@ export default function Particles({ mode, color = '#ffffff', intensity = 1, clas
       const { mode: m, color: col, intensity: k } = live.current;
       ctx.clearRect(0, 0, w, h);
       const count = ps.filter((p) => p.kind === m).length;
-      acc += rate[m] * k;
+      acc += rate[m] * k * (lite ? 0.6 : 1);
       while (acc >= 1) {
-        if (count < cap[m] * Math.max(0.3, k)) ps.push(spawn(m));
+        if (count < cap[m] * Math.max(0.3, k) * (lite ? 0.5 : 1)) ps.push(spawn(m));
         acc -= 1;
       }
       ctx.fillStyle = col;
@@ -139,7 +143,15 @@ export default function Particles({ mode, color = '#ffffff', intensity = 1, clas
       ctx.globalAlpha = 1;
     };
     raf = requestAnimationFrame(frame);
+    const offTier = onTierChange((t) => {
+      if (t === 'mid') lite = true;
+      if (t === 'low') {
+        cancelAnimationFrame(raf);
+        ctx.clearRect(0, 0, w, h);
+      }
+    });
     return () => {
+      offTier();
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
